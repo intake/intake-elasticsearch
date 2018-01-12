@@ -1,5 +1,5 @@
 package:
-   name: intake-postgres
+   name: intake-elasticsearch
    version: {{ GIT_DESCRIBE_TAG }}
 
 source:
@@ -13,12 +13,11 @@ requirements:
   build:
     - python
     - jinja2
-    - postgresql
+    - elasticsearch
   run:
     - intake
     - python
-    - psycopg2
-    - sqlalchemy
+    - elasticsearch
 
 test:
   source_files:
@@ -28,11 +27,11 @@ test:
     - pytest-cov
     - coverage
   commands:
-    - py.test --verbose --cov=intake_postgres tests
+    - py.test --verbose --cov=intake_elasticsearch tests
 
 about:
-  home: https://github.com/ContinuumIO/intake-postgres
+  home: https://github.com/ContinuumIO/intake-elasticsearch
   license: BSD
   license_file: LICENSE
   summary: |
-    PostgreSQL plugin for Intake
+    ElasticSearch plugin for Intake

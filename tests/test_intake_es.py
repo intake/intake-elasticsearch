@@ -4,7 +4,6 @@ import pickle
 import pytest
 import pandas as pd
 
-import intake_postgres as postgres
 from intake.catalog import Catalog
 from .util import verify_plugin_interface, verify_datasource_interface
 
@@ -16,6 +15,8 @@ TEST_DATA = [
     ('sample2_1', 'sample2_1.csv'),
     ('sample2_2', 'sample2_2.csv'),
 ]
+
+# TODO: this is the postgres test suite
 
 
 @pytest.fixture(scope='module')

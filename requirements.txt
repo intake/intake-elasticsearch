@@ -1,5 +1,4 @@
 intake
-pyscopg2
-sqlalchemy
-postgresql
+elasticsearch>=6.0.0
 dask
+requests

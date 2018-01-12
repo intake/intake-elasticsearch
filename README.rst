@@ -1,3 +1,3 @@
-Intake-Postgres: PostgreSQL Plugin for Intake
----------------------------------------------
+Intake-elasticsearch: ElasticSearch Plugin for Intake
+-----------------------------------------------------
 

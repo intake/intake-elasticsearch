@@ -1,5 +1,6 @@
 import shlex
 import subprocess
+import requests
 
 
 def verify_plugin_interface(plugin):
@@ -20,49 +21,38 @@ def verify_datasource_interface(source):
         assert hasattr(source, method)
 
 
-def start_postgres():
-    """Bring up a container running PostgreSQL with PostGIS. Pipe the output of
-    the container process to stdout, until the database is ready to accept
-    connections. This container may be stopped with ``stop_postgres()``.
+def start_es():
+    """Bring up a container running ES.
+
+    Waits until REST API is live and responsive.
     """
-    print('Starting PostgreSQL server...')
+    print('Starting ES server...')
 
     # More options here: https://github.com/appropriate/docker-postgis
-    cmd = shlex.split('docker run --rm --name intake-postgres --publish 5432:5432 '
-                      'mdillon/postgis:9.4-alpine')
-    proc = subprocess.Popen(cmd,
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.STDOUT,
-                            universal_newlines=True)
+    cmd = shlex.split('docker run -d -p 9200:9200 -p 9300:9300 -e '
+                      '"discovery.type=single-node" --name intake-es '
+                      'docker.elastic.co/elasticsearch/elasticsearch:6.1.1')
+    subprocess.check_call(cmd)
 
-    # The database may have been restarted in the container, so track whether
-    # initialization happened or not.
-    pg_init = False
     while True:
-        output_line = proc.stdout.readline()
-        print(output_line.rstrip())
-        # If the process exited, raise exception.
-        if proc.poll() is not None:
-            raise Exception('PostgreSQL server failed to start up properly.')
-        # Detect when initialization has happened, so we can stop waiting when
-        # the database is accepting connections.
-        if ('PostgreSQL init process complete; '
-                'ready for start up') in output_line:
-            pg_init = True
-        elif (pg_init and
-              'database system is ready to accept connections' in output_line):
+        try:
+            r = requests.get('http://localhost:9200')
+            r.json()
             break
+        except:
+            pass
 
 
-def stop_postgres(let_fail=False):
-    """Attempt to shut down the container started by ``start_postgres()``.
+def stop_es(let_fail=False):
+    """Attempt to shut down the container started by ``start_es()``
+
     Raise an exception if this operation fails, unless ``let_fail``
     evaluates to True.
     """
     try:
-        print('Stopping PostgreSQL server...')
-        subprocess.check_call('docker ps -q --filter "name=intake-postgres" | '
-                              'xargs docker rm -vf', shell=True)
+        print('Stopping ES server...')
+        subprocess.check_call('docker ps -q --filter "name=intake-es" | '
+                              'xargs docker kill -vf', shell=True)
     except subprocess.CalledProcessError:
         if not let_fail:
             raise
