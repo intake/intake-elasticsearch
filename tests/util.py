@@ -31,8 +31,10 @@ def start_es():
     # More options here: https://github.com/appropriate/docker-postgis
     cmd = shlex.split('docker run -d -p 9200:9200 -p 9300:9300 -e '
                       '"discovery.type=single-node" --name intake-es '
+                      '-e "http.host=0.0.0.0"  -e "transport.host=127.0.0.1" '
+                      '-e "xpack.security.enabled=false" '
                       'docker.elastic.co/elasticsearch/elasticsearch:6.1.1')
-    subprocess.check_call(cmd)
+    subprocess.check_call(cmd)   # the return value is actually the container ID
 
     while True:
         try:
@@ -51,8 +53,8 @@ def stop_es(let_fail=False):
     """
     try:
         print('Stopping ES server...')
-        subprocess.check_call('docker ps -q --filter "name=intake-es" | '
-                              'xargs docker kill -vf', shell=True)
+        subprocess.call('docker ps -q --filter "name=intake-es" | '
+                        'xargs docker rm -vf', shell=True)
     except subprocess.CalledProcessError:
         if not let_fail:
             raise

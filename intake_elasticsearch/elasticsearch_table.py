@@ -2,6 +2,7 @@ from intake.source import base
 import json
 from elasticsearch import Elasticsearch
 import pandas as pd
+import time
 
 __version__ = '0.0.1'
 
@@ -66,27 +67,40 @@ class ElasticSearchSource(base.DataSource):
 
     def _run_query(self, size=10):
         try:
-            print('JSON', self._qargs)
             q = json.loads(self._query)
             if 'query' not in q:
-                print('rationalise')
                 q = {'query': q}
             s = self.es.search(body=q, size=size, **self._qargs)
         except (json.JSONDecodeError, TypeError):
-            print('lucene')
             s = self.es.search(q=self._query, size=size, **self._qargs)
         return s
 
-    def _get_schema(self):
-        """Get schema from first 10 hits"""
-        results = self._run_query()
-        df = pd.DataFrame([r['_source'] for r in results['hits']['hits']])
-        results.pop('hits')
-        return base.Schema(datashape=None,
-                           dtype=df[:0],
-                           shape=(None, df.shape[0]),
-                           npartitions=1,
-                           extra_metadata=results)
+    def _get_schema(self, retry=2):
+        """Get schema from first 10 hits or cached dataframe"""
+        if self._dataframe is not None:
+            return base.Schema(datashape=None,
+                               dtype=self._dataframe[:0],
+                               shape=self._dataframe.shape,
+                               npartitions=1,
+                               extra_metadata=self._extra_metadata)
+        else:
+            while True:
+                results = self._run_query(10)
+                if 'hits' in results and results['hits']['hits']:
+                    # ES likes to return empty result-sets while indexing
+                    break
+                retry -= 0.2
+                time.sleep(0.2)
+                if retry < 0:
+                    raise IOError('No results arrived')
+            df = pd.DataFrame([r['_source'] for r in results['hits']['hits']])
+            results.pop('hits')
+            self._extra_metadata = results
+            return base.Schema(datashape=None,
+                               dtype=df[:0],
+                               shape=(None, df.shape[1]),
+                               npartitions=1,
+                               extra_metadata=self._extra_metadata)
 
     def _get_partition(self, _):
         """Downloads all data
@@ -99,8 +113,8 @@ class ElasticSearchSource(base.DataSource):
             results = self._run_query(10000)
             df = pd.DataFrame([r['_source'] for r in results['hits']['hits']])
             self._dataframe = df
-            results.pop('hits')
-            self.shape = df.shape
+            self._schema = None
+            self.discover()
         return self._dataframe
 
     def _close(self):
