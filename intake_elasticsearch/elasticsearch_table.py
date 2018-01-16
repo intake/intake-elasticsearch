@@ -102,6 +102,13 @@ class ElasticSearchSource(base.DataSource):
                                npartitions=1,
                                extra_metadata=self._extra_metadata)
 
+    def to_dask(self):
+        import dask.dataframe as dd
+        from dask import delayed
+        self.discover()
+        part = delayed(self._get_partition(0))
+        return dd.from_delayed([part], meta=self.dtype)
+
     def _get_partition(self, _):
         """Downloads all data
 

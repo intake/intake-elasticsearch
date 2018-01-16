@@ -93,124 +93,56 @@ def test_discover_after_read(engine):
     assert info['npartitions'] == 1
 
 
-# @pytest.mark.skip('Not implemented yet')
-# @pytest.mark.parametrize('table_name,csv_fpath', TEST_DATA)
-# def test_read_chunked(engine, table_name, csv_fpath):
-#     expected_df = pd.read_csv(os.path.join(TEST_DATA_DIR, csv_fpath))
-#
-#     p = postgres.Plugin()
-#     source = p.open(DB_URI, 'select * from '+table_name)
-#
-#     parts = list(source.read_chunked())
-#     df = pd.concat(parts)
-#
-#     assert expected_df.equals(df)
-#
-#
-# @pytest.mark.skip('Partition support not planned')
-# @pytest.mark.parametrize('table_name,csv_fpath', TEST_DATA)
-# def test_read_partition(engine, table_name, csv_fpath):
-#     expected_df1 = pd.read_csv(os.path.join(TEST_DATA_DIR, csv_fpath))
-#     expected_df2 = pd.read_csv(os.path.join(TEST_DATA_DIR, csv_fpath))
-#
-#     p = postgres.Plugin()
-#     source = p.open(DB_URI, 'select * from '+table_name)
-#
-#     source.discover()
-#     assert source.npartitions == 2
-#
-#     # Read partitions is opposite order
-#     df2 = source.read_partition(1)
-#     df1 = source.read_partition(0)
-#
-#     assert expected_df1.equals(df1)
-#     assert expected_df2.equals(df2)
-#
-#
-# @pytest.mark.skip('Not implemented yet')
-# @pytest.mark.parametrize('table_name,csv_fpath', TEST_DATA)
-# def test_to_dask(engine, table_name, csv_fpath):
-#     expected_df = pd.read_csv(os.path.join(TEST_DATA_DIR, csv_fpath))
-#
-#     p = postgres.Plugin()
-#     source = p.open(DB_URI, 'select * from '+table_name)
-#
-#     dd = source.to_dask()
-#     df = dd.compute()
-#
-#     assert expected_df.equals(df)
-#
-#
-# @pytest.mark.parametrize('table_name,csv_fpath', TEST_DATA)
-# def test_close(engine, table_name, csv_fpath):
-#     expected_df = pd.read_csv(os.path.join(TEST_DATA_DIR, csv_fpath))
-#
-#     p = postgres.Plugin()
-#     source = p.open(DB_URI, 'select * from '+table_name)
-#
-#     source.close()
-#     # Can reopen after close
-#     df = source.read()
-#
-#     assert expected_df.equals(df)
-#
-#
-# @pytest.mark.parametrize('table_name,csv_fpath', TEST_DATA)
-# def test_pickle(engine, table_name, csv_fpath):
-#     expected_df = pd.read_csv(os.path.join(TEST_DATA_DIR, csv_fpath))
-#
-#     p = postgres.Plugin()
-#     source = p.open(DB_URI, 'select * from '+table_name)
-#
-#     pickled_source = pickle.dumps(source)
-#     source_clone = pickle.loads(pickled_source)
-#
-#     expected_df = source.read()
-#     df = source_clone.read()
-#
-#     assert expected_df.equals(df)
-#
-#
-# @pytest.mark.parametrize('table_name,_1', TEST_DATA)
-# def test_catalog(engine, table_name, _1):
-#     catalog_fpath = os.path.join(TEST_DATA_DIR, 'catalog1.yml')
-#
-#     catalog = Catalog(catalog_fpath)
-#     ds_name = table_name.rsplit('_idx', 1)[0]
-#     src = catalog[ds_name]
-#     pgsrc = src.get()
-#
-#     assert src.describe()['container'] == 'dataframe'
-#     assert src.describe_open()['plugin'] == 'postgres'
-#     assert src.describe_open()['args']['sql_expr'][:6] in ('select', 'SELECT')
-#
-#     metadata = pgsrc.discover()
-#     assert metadata['npartitions'] == 1
-#
-#     expected_df = pd.read_sql_query(pgsrc._sql_expr, engine)
-#     df = pgsrc.read()
-#     assert expected_df.equals(df)
-#
-#     pgsrc.close()
-#
-#
-# def test_catalog_join(engine):
-#     catalog_fpath = os.path.join(TEST_DATA_DIR, 'catalog1.yml')
-#
-#     catalog = Catalog(catalog_fpath)
-#     ds_name = 'sample2'
-#     src = catalog[ds_name]
-#     pgsrc = src.get()
-#
-#     assert src.describe()['container'] == 'dataframe'
-#     assert src.describe_open()['plugin'] == 'postgres'
-#     assert src.describe_open()['args']['sql_expr'][:6] in ('select', 'SELECT')
-#
-#     metadata = pgsrc.discover()
-#     assert metadata['npartitions'] == 1
-#
-#     expected_df = pd.read_sql_query(pgsrc._sql_expr, engine)
-#     df = pgsrc.read()
-#     assert expected_df.equals(df)
-#
-#     pgsrc.close()
+def test_read_chunked(engine):
+    p = Plugin()
+    # drop in a test of sort - only works on numerical field without work
+    source = p.open('score:[0 TO 150]', qargs={
+        "sort": 'rank'},
+        **CONNECT)
+
+    parts = list(source.read_chunked())
+    out = pd.concat(parts)
+
+    # with sort, comparison is simpler
+    assert out[df.columns].equals(df)
+
+
+def test_to_dask(engine):
+    p = Plugin()
+    source = p.open('score:[0 TO 150]', qargs={
+        "sort": 'rank'},
+        **CONNECT)
+
+    dd = source.to_dask()
+    assert dd.npartitions == 1
+    assert set(dd.columns) == set(df.columns)
+    out = dd.compute()
+
+    assert out[df.columns].equals(df)
+
+
+def test_close(engine):
+    p = Plugin()
+    source = p.open('score:[0 TO 150]', qargs={
+        "sort": 'rank'},
+        **CONNECT)
+
+    source.close()
+    # Can reopen after close
+    out = source.read()
+
+    assert out[df.columns].equals(df)
+
+
+def test_pickle(engine):
+    p = Plugin()
+    source = p.open('score:[0 TO 150]', qargs={
+        "sort": 'rank'},
+        **CONNECT)
+
+    pickled_source = pickle.dumps(source)
+    source_clone = pickle.loads(pickled_source)
+
+    out = source_clone.read()
+
+    assert out[df.columns].equals(df)
