@@ -75,6 +75,16 @@ def test_read(engine):
                for d in df.to_dict(orient='records')])
 
 
+def test_read_small_scroll(engine):
+    p = Plugin()
+    source = p.open('score:[0 TO 150]', scroll='5m', size=1,
+                    **CONNECT)
+    out = source.read()
+    # this would be easier with a full query with sorting
+    assert all([d in out.to_dict(orient='records')
+               for d in df.to_dict(orient='records')])
+
+
 def test_discover_after_read(engine):
     p = Plugin()
     source = p.open('score:[0 TO 150]', **CONNECT)
