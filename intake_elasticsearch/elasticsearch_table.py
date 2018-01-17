@@ -90,6 +90,7 @@ class ElasticSearchSource(base.DataSource):
             page = self.es.scroll(scroll_id=sid, scroll=self._scroll)
             sid = page['_scroll_id']
             s['hits']['hits'].extend(page['hits']['hits'])
+        self.es.clear_scroll(scroll_id=sid)
         return s
 
     def _get_schema(self, retry=2):
