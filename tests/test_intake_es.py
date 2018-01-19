@@ -4,9 +4,8 @@ import pickle
 from elasticsearch import Elasticsearch, RequestError
 import pytest
 import pandas as pd
-import time
 
-from intake_elasticsearch.elasticsearch_table import ElasticSearchSource, Plugin
+from intake_elasticsearch.elasticsearch_table import Plugin
 from .util import verify_plugin_interface, verify_datasource_interface
 
 
