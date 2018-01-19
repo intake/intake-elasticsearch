@@ -4,6 +4,11 @@ from elasticsearch import Elasticsearch
 import pandas as pd
 import time
 
+try:
+    from json.decoder import JSONDecodeError
+except ImportError:
+    JSONDecodeError = ValueError
+
 __version__ = '0.0.1'
 
 
@@ -81,7 +86,7 @@ class ElasticSearchSource(base.DataSource):
                 q = {'query': q}
             s = self.es.search(body=q, size=size, scroll=self._scroll,
                                **self._qargs)
-        except (json.JSONDecodeError, TypeError):
+        except (JSONDecodeError, TypeError):
             s = self.es.search(q=self._query, size=size, scroll=self._scroll,
                                **self._qargs)
         sid = s['_scroll_id']
