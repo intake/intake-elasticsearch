@@ -28,7 +28,6 @@ def start_es():
     """
     print('Starting ES server...')
 
-    # More options here: https://github.com/appropriate/docker-postgis
     cmd = shlex.split('docker run -d -p 9200:9200 -p 9300:9300 -e '
                       '"discovery.type=single-node" --name intake-es '
                       '-e "http.host=0.0.0.0"  -e "transport.host=127.0.0.1" '
@@ -45,16 +44,25 @@ def start_es():
             pass
 
 
-def stop_es(let_fail=False):
-    """Attempt to shut down the container started by ``start_es()``
+def stop_docker(name, let_fail=False):
+    """Stop docker container with given name tag
 
-    Raise an exception if this operation fails, unless ``let_fail``
-    evaluates to True.
+    Parameters
+    ----------
+    name: str
+        name field which has been attached to the container we wish to remove
+    let_fail: bool
+        whether to raise an exception if the underlying commands return an
+        error.
     """
     try:
-        print('Stopping ES server...')
-        subprocess.call('docker ps -q --filter "name=intake-es" | '
-                        'xargs docker rm -vf', shell=True)
-    except subprocess.CalledProcessError:
+        print('Stopping %s ...' % name)
+        cmd = shlex.split('docker ps -q --filter "name=%s"' % name)
+        cid = subprocess.check_output(cmd).strip().decode()
+        if cid:
+            subprocess.call(['docker', 'kill', cid])
+            subprocess.call(['docker', 'rm', cid])
+    except subprocess.CalledProcessError as e:
+        print(e)
         if not let_fail:
             raise

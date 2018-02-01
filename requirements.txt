@@ -2,3 +2,4 @@ intake
 elasticsearch>=6.0.0
 dask
 requests
+pandas

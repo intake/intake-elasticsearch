@@ -4,9 +4,8 @@ import pickle
 from elasticsearch import Elasticsearch, RequestError
 import pytest
 import pandas as pd
-import time
 
-from intake_elasticsearch.elasticsearch_table import ElasticSearchSource, Plugin
+from intake_elasticsearch import Plugin, ElasticSearchSource
 from .util import verify_plugin_interface, verify_datasource_interface
 
 
@@ -22,8 +21,8 @@ df = pd.read_csv(os.path.join(TEST_DATA_DIR, TEST_DATA))
 @pytest.fixture(scope='module')
 def engine():
     """Start docker container for ES and cleanup connection afterward."""
-    from .util import start_es, stop_es
-    stop_es(let_fail=True)
+    from .util import start_es, stop_docker
+    stop_docker('intake-es', let_fail=True)
     start_es()
 
     es = Elasticsearch([CONNECT])
@@ -38,7 +37,7 @@ def engine():
     try:
         yield
     finally:
-        stop_es()
+        stop_docker('intake-es')
 
 
 def test_es_plugin(engine):
