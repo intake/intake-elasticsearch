@@ -32,6 +32,7 @@ class ElasticSearchSource(base.DataSource):
         Settings for the ES connection, e.g., a simple local connection may be
         ``{'host': 'localhost', 'port': 9200}``.
         Other keywords to the Plugin that end up here and are material:
+        
         scroll: str
             how long the query is live for, default ``'100m'``
         size: int
