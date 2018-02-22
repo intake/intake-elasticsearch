@@ -101,6 +101,7 @@ class ElasticSearchSource(base.DataSource):
                                extra_metadata=self._extra_metadata)
 
     def to_dask(self):
+        """Make single-partition lazy dask data-frame"""
         import dask.dataframe as dd
         from dask import delayed
         self.discover()
