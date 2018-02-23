@@ -77,7 +77,7 @@ To include in a catalog, the plugin must be listed in the plugins of the catalog
 and entries must specify ``driver: elasticsearch_table``.
 
 Aside from this, the same arguments are available as for ad-hoc usage. Note that queries
-are commonly multi-line, especially is using JSON syntax, so the YAML ``"|"`` characted
+are commonly multi-line, especially is using JSON syntax, so the YAML ``"|"`` character
 should be used to define them within the catalog file. A full entry may look something like::
 
     args:
