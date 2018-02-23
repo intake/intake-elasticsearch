@@ -62,7 +62,7 @@ are likely not altered often.
 
 - scroll: a text string specifying how long the query remains live on the server
 
-- size: the number of entries to download in a single call; smaller numers will download
+- size: the number of entries to download in a single call; smaller numbers will download
   slower, but may be more stable.
 
 Creating Catalog Entries
