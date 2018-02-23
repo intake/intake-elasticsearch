@@ -3,6 +3,8 @@ from intake.source import base
 
 
 class Plugin(base.Plugin):
+    """Plugin for ElasticSearch to pandas reader"""
+
     def __init__(self):
         super(Plugin, self).__init__(name='elasticsearch_table',
                                      version=__version__,
@@ -11,12 +13,14 @@ class Plugin(base.Plugin):
 
     def open(self, query, **kwargs):
         """
+        Create ElasticSearchSource instance
+
         Parameters:
             query : str
                 Query string (lucene syntax or JSON text)
             qargs: dict
                 Set of modifiers to apply to the query
-                (http://elasticsearch-py.readthedocs.io/en/master/api.html#elasticsearch)
+                (https://elasticsearch-py.readthedocs.io/en/master/api.html#elasticsearch.Elasticsearch.search)
             kwargs (dict):
                 Additional parameters to pass to ElasticSearch init.
         """
