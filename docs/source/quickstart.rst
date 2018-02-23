@@ -78,7 +78,29 @@ and entries must specify ``driver: elasticsearch_table``.
 
 Aside from this, the same arguments are available as for ad-hoc usage. Note that queries
 are commonly multi-line, especially is using JSON syntax, so the YAML ``"|"`` characted
-should be used to define them within the catalog file.
+should be used to define them within the catalog file. A full entry may look something like::
+
+    args:
+      qargs:
+        index: intake_test
+        doc_type: entry
+      query: |
+          {
+          "query": {
+              "match":
+                  {"typeid": 1}
+              },
+          "sort": {
+              "price": {"order": "desc"}
+              },
+          "_source": ["price", "typeid"]
+          }
+      host: intake_es
+
+
+where we have specified both the index and document types (these could have been lists), the fields
+to extract and sort order, as well as a matching term, loosely equivalent to ``"WHERE typeid = 1"``
+in SQL.
 
 Using a Catalog
 ~~~~~~~~~~~~~~~
