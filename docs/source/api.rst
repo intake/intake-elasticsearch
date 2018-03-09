@@ -4,11 +4,19 @@ API Reference
 .. currentmodule:: intake_elasticsearch
 
 .. autosummary::
-   Plugin
-   ElasticSearchSource
+   ESSeqPlugin
+   ESTablePlugin
+   ElasticSearchTableSource
+   ElasticSearchSeqSource
 
-.. autoclass:: Plugin
+.. autoclass:: ESSeqPlugin
    :members:
 
-.. autoclass:: ElasticSearchSource
+.. autoclass:: ESTablePlugin
+   :members:
+
+.. autoclass:: ElasticSearchTableSource
+   :members:
+
+.. autoclass:: ElasticSearchSeqSource
    :members:

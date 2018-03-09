@@ -9,10 +9,10 @@ try:
 except ImportError:
     JSONDecodeError = ValueError
 
-__version__ = '0.0.1'
+from .elasticsearch_seq import ElasticSearchSeqSource
 
 
-class ElasticSearchSource(base.DataSource):
+class ElasticSearchTableSource(ElasticSearchSeqSource):
     """
     Data source which executes arbitrary queries on ElasticSearch
 
@@ -40,39 +40,11 @@ class ElasticSearchSource(base.DataSource):
     metadata: dict
         Extra information for this source.
     """
+    _dataframe = None
+    container = 'dataframe'
 
-    def __init__(self, query, qargs, es_kwargs, metadata):
-        self._query = query
-        self._qargs = qargs
-        self._scroll = es_kwargs.pop('scroll', '100m')
-        self._size = es_kwargs.pop('size', 1000)  # default page size
-        self._es_kwargs = es_kwargs
-        self._dataframe = None
-        self.es = Elasticsearch([es_kwargs])  # maybe should be (more) global?
-
-        super(ElasticSearchSource, self).__init__(container='dataframe',
-                                                  metadata=metadata)
-
-    def _run_query(self, size=None):
-        if size is None:
-            size = self._size
-        try:
-            q = json.loads(self._query)
-            if 'query' not in q:
-                q = {'query': q}
-            s = self.es.search(body=q, size=size, scroll=self._scroll,
-                               **self._qargs)
-        except (JSONDecodeError, TypeError):
-            s = self.es.search(q=self._query, size=size, scroll=self._scroll,
-                               **self._qargs)
-        sid = s['_scroll_id']
-        scroll_size = s['hits']['total']
-        while scroll_size > len(s['hits']['hits']):
-            page = self.es.scroll(scroll_id=sid, scroll=self._scroll)
-            sid = page['_scroll_id']
-            s['hits']['hits'].extend(page['hits']['hits'])
-        self.es.clear_scroll(scroll_id=sid)
-        return s
+    def __init__(self, *args, **kwargs):
+        ElasticSearchSeqSource.__init__(self, *args, **kwargs)
 
     def _get_schema(self, retry=2):
         """Get schema from first 10 hits or cached dataframe"""

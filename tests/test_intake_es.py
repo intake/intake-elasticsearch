@@ -5,7 +5,7 @@ from elasticsearch import Elasticsearch, RequestError
 import pytest
 import pandas as pd
 
-from intake_elasticsearch import Plugin, ElasticSearchSource
+from intake_elasticsearch import ESTablePlugin, ESSeqPlugin
 from .util import verify_plugin_interface, verify_datasource_interface
 
 
@@ -23,32 +23,32 @@ def engine():
     """Start docker container for ES and cleanup connection afterward."""
     from .util import start_es, stop_docker
     stop_docker('intake-es', let_fail=True)
-    start_es()
+    cid = start_es()
 
-    es = Elasticsearch([CONNECT])
     try:
-        es.indices.create(index='intake_test')
-    except RequestError:
-        # index already existed - ignore
-        pass
-    for i, item in df.iterrows():
-        es.index(index='intake_test', doc_type='entry', id=i,
-                 body=item.to_dict())
-    try:
+        es = Elasticsearch([CONNECT])
+        try:
+            es.indices.create(index='intake_test')
+        except RequestError:
+            # index already existed - ignore
+            pass
+        for i, item in df.iterrows():
+            es.index(index='intake_test', doc_type='entry', id=i,
+                     body=item.to_dict())
         yield
     finally:
-        stop_docker('intake-es')
+        stop_docker('intake-es', cid=cid)
 
 
 def test_es_plugin(engine):
-    p = Plugin()
+    p = ESTablePlugin()
     assert isinstance(p.version, str)
     assert p.container == 'dataframe'
     verify_plugin_interface(p)
 
 
 def test_open(engine):
-    p = Plugin()
+    p = ESTablePlugin()
     d = p.open('score:[30 TO 150]', **CONNECT)
     assert d.container == 'dataframe'
     assert d.description is None
@@ -56,7 +56,7 @@ def test_open(engine):
 
 
 def test_discover(engine):
-    p = Plugin()
+    p = ESTablePlugin()
     source = p.open('score:[30 TO 150]', **CONNECT)
     info = source.discover()
     # NB: ES results come as dicts, so column order can vary
@@ -66,7 +66,7 @@ def test_discover(engine):
 
 
 def test_read(engine):
-    p = Plugin()
+    p = ESTablePlugin()
     source = p.open('score:[0 TO 150]', **CONNECT)
     out = source.read()
     # this would be easier with a full query with sorting
@@ -74,8 +74,15 @@ def test_read(engine):
                for d in df.to_dict(orient='records')])
 
 
+def test_read_sequence(engine):
+    p = ESSeqPlugin()
+    source = p.open('score:[0 TO 150]', **CONNECT)
+    out = source.read()
+    assert all([d in out for d in df.to_dict(orient='records')])
+
+
 def test_read_small_scroll(engine):
-    p = Plugin()
+    p = ESTablePlugin()
     source = p.open('score:[0 TO 150]', scroll='5m', size=1,
                     **CONNECT)
     out = source.read()
@@ -85,7 +92,7 @@ def test_read_small_scroll(engine):
 
 
 def test_discover_after_read(engine):
-    p = Plugin()
+    p = ESTablePlugin()
     source = p.open('score:[0 TO 150]', **CONNECT)
     info = source.discover()
     assert info['dtype'].dtypes.to_dict() == df[:0].dtypes.to_dict()
@@ -103,7 +110,7 @@ def test_discover_after_read(engine):
 
 
 def test_read_chunked(engine):
-    p = Plugin()
+    p = ESTablePlugin()
     # drop in a test of sort - only works on numerical field without work
     source = p.open('score:[0 TO 150]', qargs={
         "sort": 'rank'},
@@ -117,7 +124,7 @@ def test_read_chunked(engine):
 
 
 def test_to_dask(engine):
-    p = Plugin()
+    p = ESTablePlugin()
     source = p.open('score:[0 TO 150]', qargs={
         "sort": 'rank'},
         **CONNECT)
@@ -131,7 +138,7 @@ def test_to_dask(engine):
 
 
 def test_close(engine):
-    p = Plugin()
+    p = ESTablePlugin()
     source = p.open('score:[0 TO 150]', qargs={
         "sort": 'rank'},
         **CONNECT)
@@ -144,7 +151,7 @@ def test_close(engine):
 
 
 def test_pickle(engine):
-    p = Plugin()
+    p = ESTablePlugin()
     source = p.open('score:[0 TO 150]', qargs={
         "sort": 'rank'},
         **CONNECT)
