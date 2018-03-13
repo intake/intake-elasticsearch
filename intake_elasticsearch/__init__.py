@@ -1,15 +1,22 @@
-from .elasticsearch_table import __version__, ElasticSearchSource
+from .elasticsearch_table import ElasticSearchTableSource
+from .elasticsearch_seq import ElasticSearchSeqSource
 from intake.source import base
 
+__version__ = '0.0.1'
 
-class Plugin(base.Plugin):
-    """Plugin for ElasticSearch to pandas reader"""
+
+class ESSeqPlugin(base.Plugin):
+    """Plugin for ElasticSearch to sequence reader"""
+
+    container = 'python'
+    name = 'elasticsearch_seq'
+    source = ElasticSearchSeqSource
 
     def __init__(self):
-        super(Plugin, self).__init__(name='elasticsearch_table',
-                                     version=__version__,
-                                     container='dataframe',
-                                     partition_access=False)
+        base.Plugin.__init__(self, name=self.name,
+                             version=__version__,
+                             container=self.container,
+                             partition_access=False)
 
     def open(self, query, **kwargs):
         """
@@ -26,8 +33,14 @@ class Plugin(base.Plugin):
         """
         base_kwargs, source_kwargs = self.separate_base_kwargs(kwargs)
         qargs = source_kwargs.pop('qargs', {})
-        return ElasticSearchSource(query=query, qargs=qargs,
-                                   es_kwargs=source_kwargs,
-                                   metadata=base_kwargs['metadata'])
+        return self.source(query=query, qargs=qargs,
+                           es_kwargs=source_kwargs,
+                           metadata=base_kwargs['metadata'])
 
 
+class ESTablePlugin(ESSeqPlugin):
+    """Plugin for ElasticSearch to pandas reader"""
+
+    container = 'dataframe'
+    name = 'elasticsearch_table'
+    source = ElasticSearchTableSource

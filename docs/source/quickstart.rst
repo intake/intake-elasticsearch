@@ -1,7 +1,7 @@
 Quickstart
 ==========
 
-``intake-elasticsearch`` provides quick and easy access to tabular data stored in
+``intake-elasticsearch`` provides quick and easy access to  data stored in
 `ElasticSearch`_
 
 .. _ElasticSearch: https://www.elastic.co/
@@ -24,9 +24,10 @@ Usage
 Ad-hoc
 ~~~~~~
 
-After installation, the function ``intake.open_elasticsearch_table``
-will become available. It can be used to execute queries on the ElasticSearch
-server, and download the results as a data-frame.
+After installation, the functions ``intake.open_elasticsearch_table``
+and ``intake.open_elasticsearch_seq``
+will become available. They can be used to execute queries on the ElasticSearch
+server, and download the results as a sequence of dictionaries, or a data-frame.
 
 Three parameters are of interest when defining a data source:
 
@@ -49,7 +50,7 @@ Three parameters are of interest when defining a data source:
 In the simplest case, this might look something like::
 
    import intake
-   source = intake.open_elasticsearch_table("*:*", host='elastic.server', port=9200,
+   source = intake.open_elasticsearch_seq("*:*", host='elastic.server', port=9200,
        qargs={'index': 'mydocuments'})
    result = source.read()
 
@@ -74,7 +75,9 @@ To include in a catalog, the plugin must be listed in the plugins of the catalog
      source:
        - module: intake_elasticsearch
 
-and entries must specify ``driver: elasticsearch_table``.
+and entries must specify ``driver: elasticsearch_seq`` for the sequence
+of dictionaries version, and ``driver: elasticsearch_table`` for the dataframe
+version.
 
 Aside from this, the same arguments are available as for ad-hoc usage. Note that queries
 are commonly multi-line, especially is using JSON syntax, so the YAML ``"|"`` character
