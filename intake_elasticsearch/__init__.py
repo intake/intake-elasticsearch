@@ -1,8 +1,8 @@
-from .elasticsearch_table import ElasticSearchTableSource
-from .elasticsearch_seq import ElasticSearchSeqSource
 from intake.source import base
 
-__version__ = '0.0.1'
+from ._version import get_versions
+__version__ = get_versions()['version']
+del get_versions
 
 
 class ESSeqPlugin(base.Plugin):
@@ -10,7 +10,7 @@ class ESSeqPlugin(base.Plugin):
 
     container = 'python'
     name = 'elasticsearch_seq'
-    source = ElasticSearchSeqSource
+    source = 'seq'
 
     def __init__(self):
         base.Plugin.__init__(self, name=self.name,
@@ -31,11 +31,16 @@ class ESSeqPlugin(base.Plugin):
             kwargs (dict):
                 Additional parameters to pass to ElasticSearch init.
         """
+        from .elasticsearch_table import ElasticSearchTableSource
+        from .elasticsearch_seq import ElasticSearchSeqSource
+        sources = {'seq': ElasticSearchSeqSource,
+                   'table': ElasticSearchTableSource}
+        source = sources[self.source]
         base_kwargs, source_kwargs = self.separate_base_kwargs(kwargs)
         qargs = source_kwargs.pop('qargs', {})
-        return self.source(query=query, qargs=qargs,
-                           es_kwargs=source_kwargs,
-                           metadata=base_kwargs['metadata'])
+        return source(query=query, qargs=qargs,
+                      es_kwargs=source_kwargs,
+                      metadata=base_kwargs['metadata'])
 
 
 class ESTablePlugin(ESSeqPlugin):
@@ -43,4 +48,4 @@ class ESTablePlugin(ESSeqPlugin):
 
     container = 'dataframe'
     name = 'elasticsearch_table'
-    source = ElasticSearchTableSource
+    source = 'table'

@@ -1,14 +1,15 @@
 #!/usr/bin/env python
 
 from setuptools import setup, find_packages
-version = '0.0.1'
+import versioneer
 
 
 requires = open('requirements.txt').read().strip().split('\n')
 
 setup(
     name='intake-elasticsearch',
-    version=version,
+    version=versioneer.get_version(),
+    cmdclass=versioneer.get_cmdclass(),
     description='ElasticSearch plugin for Intake',
     url='https://github.com/ContinuumIO/intake-elasticsearch',
     maintainer='Stan Seibert',
