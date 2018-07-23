@@ -16,7 +16,7 @@ requirements:
     - jinja2
     - elasticsearch
   run:
-    - intake
+    - intake>=0.2
     - python
     - elasticsearch
 

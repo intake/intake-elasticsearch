@@ -69,13 +69,7 @@ are likely not altered often.
 Creating Catalog Entries
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-To include in a catalog, the plugin must be listed in the plugins of the catalog::
-
-   plugins:
-     source:
-       - module: intake_elasticsearch
-
-and entries must specify ``driver: elasticsearch_seq`` for the sequence
+Catalog entries must specify ``driver: elasticsearch_seq`` for the sequence
 of dictionaries version, and ``driver: elasticsearch_table`` for the dataframe
 version.
 

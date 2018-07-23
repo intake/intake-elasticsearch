@@ -1,11 +1,12 @@
 import os
 import pickle
+import time
 
 from elasticsearch import Elasticsearch, RequestError
 import pytest
 import pandas as pd
 
-from intake_elasticsearch import ESTablePlugin, ESSeqPlugin
+from intake_elasticsearch import ElasticSearchTableSource, ElasticSearchSeqSource
 from .util import verify_plugin_interface, verify_datasource_interface
 
 
@@ -35,39 +36,31 @@ def engine():
         for i, item in df.iterrows():
             es.index(index='intake_test', doc_type='entry', id=i,
                      body=item.to_dict())
+        time.sleep(1)
         yield
     finally:
         stop_docker('intake-es', cid=cid)
 
 
-def test_es_plugin(engine):
-    p = ESTablePlugin()
-    assert isinstance(p.version, str)
-    assert p.container == 'dataframe'
-    verify_plugin_interface(p)
-
-
 def test_open(engine):
-    p = ESTablePlugin()
-    d = p.open('score:[30 TO 150]', **CONNECT)
+    d = ElasticSearchTableSource('score:[30 TO 150]', **CONNECT)
     assert d.container == 'dataframe'
     assert d.description is None
     verify_datasource_interface(d)
 
 
 def test_discover(engine):
-    p = ESTablePlugin()
-    source = p.open('score:[30 TO 150]', **CONNECT)
+    source = ElasticSearchTableSource('score:[30 TO 150]', **CONNECT)
     info = source.discover()
     # NB: ES results come as dicts, so column order can vary
-    assert info['dtype'].dtypes.to_dict() == df[:0].dtypes.to_dict()
+    assert info['dtype'] == {k: str(v) for k, v
+                             in df[:0].dtypes.to_dict().items()}
     assert info['shape'] == (None, 3)
     assert info['npartitions'] == 1
 
 
 def test_read(engine):
-    p = ESTablePlugin()
-    source = p.open('score:[0 TO 150]', **CONNECT)
+    source = ElasticSearchTableSource('score:[0 TO 150]', **CONNECT)
     out = source.read()
     # this would be easier with a full query with sorting
     assert all([d in out.to_dict(orient='records')
@@ -75,27 +68,25 @@ def test_read(engine):
 
 
 def test_read_sequence(engine):
-    p = ESSeqPlugin()
-    source = p.open('score:[0 TO 150]', **CONNECT)
+    source = ElasticSearchSeqSource('score:[0 TO 150]', **CONNECT)
     out = source.read()
     assert all([d in out for d in df.to_dict(orient='records')])
 
 
 def test_read_small_scroll(engine):
-    p = ESTablePlugin()
-    source = p.open('score:[0 TO 150]', scroll='5m', size=1,
-                    **CONNECT)
+    source = ElasticSearchSeqSource('score:[0 TO 150]', scroll='5m', size=1,
+                                    **CONNECT)
     out = source.read()
     # this would be easier with a full query with sorting
-    assert all([d in out.to_dict(orient='records')
+    assert all([d in out
                for d in df.to_dict(orient='records')])
 
 
 def test_discover_after_read(engine):
-    p = ESTablePlugin()
-    source = p.open('score:[0 TO 150]', **CONNECT)
+    source = ElasticSearchTableSource('score:[0 TO 150]', **CONNECT)
     info = source.discover()
-    assert info['dtype'].dtypes.to_dict() == df[:0].dtypes.to_dict()
+    dt = {k: str(v) for k, v in df.dtypes.to_dict().items()}
+    assert info['dtype'] == dt
     assert info['shape'] == (None, 3)
     assert info['npartitions'] == 1
 
@@ -104,30 +95,15 @@ def test_discover_after_read(engine):
                for d in df.to_dict(orient='records')])
 
     info = source.discover()
-    assert info['dtype'].dtypes.to_dict() == df[:0].dtypes.to_dict()
+    assert info['dtype'] == dt
     assert info['shape'] == (4, 3)
     assert info['npartitions'] == 1
 
 
-def test_read_chunked(engine):
-    p = ESTablePlugin()
-    # drop in a test of sort - only works on numerical field without work
-    source = p.open('score:[0 TO 150]', qargs={
-        "sort": 'rank'},
-        **CONNECT)
-
-    parts = list(source.read_chunked())
-    out = pd.concat(parts)
-
-    # with sort, comparison is simpler
-    assert out[df.columns].equals(df)
-
-
 def test_to_dask(engine):
-    p = ESTablePlugin()
-    source = p.open('score:[0 TO 150]', qargs={
-        "sort": 'rank'},
-        **CONNECT)
+    source = ElasticSearchTableSource('score:[0 TO 150]', qargs={
+                                      "sort": 'rank'},
+                                      **CONNECT)
 
     dd = source.to_dask()
     assert dd.npartitions == 1
@@ -138,8 +114,7 @@ def test_to_dask(engine):
 
 
 def test_close(engine):
-    p = ESTablePlugin()
-    source = p.open('score:[0 TO 150]', qargs={
+    source = ElasticSearchTableSource('score:[0 TO 150]', qargs={
         "sort": 'rank'},
         **CONNECT)
 
@@ -151,8 +126,7 @@ def test_close(engine):
 
 
 def test_pickle(engine):
-    p = ESTablePlugin()
-    source = p.open('score:[0 TO 150]', qargs={
+    source = ElasticSearchTableSource('score:[0 TO 150]', qargs={
         "sort": 'rank'},
         **CONNECT)
 

@@ -1,15 +1,10 @@
 from intake.source import base
 import json
-from elasticsearch import Elasticsearch
-import pandas as pd
-import time
-
+from . import __version__
 try:
     from json.decoder import JSONDecodeError
 except ImportError:
     JSONDecodeError = ValueError
-
-__version__ = '0.0.1'
 
 
 class ElasticSearchSeqSource(base.DataSource):
@@ -40,10 +35,13 @@ class ElasticSearchSeqSource(base.DataSource):
     metadata: dict
         Extra information for this source.
     """
-
+    name = 'elasticsearch_seq'
     container = 'python'
+    version = __version__
+    partition_access = False
 
-    def __init__(self, query, qargs, es_kwargs, metadata):
+    def __init__(self, query, qargs={}, metadata={}, **es_kwargs):
+        from elasticsearch import Elasticsearch
         self._query = query
         self._qargs = qargs
         self._scroll = es_kwargs.pop('scroll', '100m')
@@ -52,10 +50,9 @@ class ElasticSearchSeqSource(base.DataSource):
         self._dataframe = None
         self.es = Elasticsearch([es_kwargs])  # maybe should be (more) global?
 
-        super(ElasticSearchSeqSource, self).__init__(container=self.container,
-                                                  metadata=metadata)
+        super(ElasticSearchSeqSource, self).__init__(metadata=metadata)
 
-    def _run_query(self, size=None):
+    def _run_query(self, size=None, end=None):
         if size is None:
             size = self._size
         try:
@@ -73,6 +70,8 @@ class ElasticSearchSeqSource(base.DataSource):
             page = self.es.scroll(scroll_id=sid, scroll=self._scroll)
             sid = page['_scroll_id']
             s['hits']['hits'].extend(page['hits']['hits'])
+            if end is not None and len(s['hits']['hits']) > end:
+                break
         self.es.clear_scroll(scroll_id=sid)
         return s
 

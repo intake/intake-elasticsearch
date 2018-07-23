@@ -1,14 +1,10 @@
 from intake.source import base
-import json
-from elasticsearch import Elasticsearch
-import pandas as pd
 import time
 
 try:
     from json.decoder import JSONDecodeError
 except ImportError:
     JSONDecodeError = ValueError
-
 from .elasticsearch_seq import ElasticSearchSeqSource
 
 
@@ -45,33 +41,24 @@ class ElasticSearchTableSource(ElasticSearchSeqSource):
 
     def __init__(self, *args, **kwargs):
         ElasticSearchSeqSource.__init__(self, *args, **kwargs)
+        self.part = True
 
-    def _get_schema(self, retry=2):
+    def _get_schema(self):
+        import pandas as pd
         """Get schema from first 10 hits or cached dataframe"""
-        if self._dataframe is not None:
-            return base.Schema(datashape=None,
-                               dtype=self._dataframe[:0],
-                               shape=self._dataframe.shape,
-                               npartitions=1,
-                               extra_metadata=self._extra_metadata)
-        else:
-            while True:
-                results = self._run_query(10)
-                if 'hits' in results and results['hits']['hits']:
-                    # ES likes to return empty result-sets while indexing
-                    break
-                retry -= 0.2
-                time.sleep(0.2)
-                if retry < 0:
-                    raise IOError('No results arrived')
+        if self._dataframe is None:
+            results = self._run_query(end=100)
             df = pd.DataFrame([r['_source'] for r in results['hits']['hits']])
-            results.pop('hits')
-            self._extra_metadata = results
-            return base.Schema(datashape=None,
-                               dtype=df[:0],
-                               shape=(None, df.shape[1]),
-                               npartitions=1,
-                               extra_metadata=self._extra_metadata)
+            self._dataframe = df
+            self.part = True
+        dtype = {k: str(v) for k, v
+                 in self._dataframe.dtypes.to_dict().items()}
+        shape = (None if self.part else len(self._dataframe), len(dtype))
+        return base.Schema(datashape=None,
+                           dtype=dtype,
+                           shape=shape,
+                           npartitions=1,
+                           extra_metadata=self.metadata)
 
     def to_dask(self):
         """Make single-partition lazy dask data-frame"""
@@ -88,11 +75,13 @@ class ElasticSearchTableSource(ElasticSearchSeqSource):
         implement paging, known to ES as "scroll"
         https://stackoverflow.com/questions/41655913/elk-how-do-i-retrieve-more-than-10000-results-events-in-elastic-search
         """
-        if self._dataframe is None:
+        import pandas as pd
+        if self._dataframe is None or self.part:
             results = self._run_query()
             df = pd.DataFrame([r['_source'] for r in results['hits']['hits']])
             self._dataframe = df
             self._schema = None
+            self.part = False
             self.discover()
         return self._dataframe
 
