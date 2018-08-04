@@ -55,6 +55,8 @@ class ElasticSearchSeqSource(base.DataSource):
     def _run_query(self, size=None, end=None):
         if size is None:
             size = self._size
+        if end is not None:
+            size = min(end, size)
         try:
             q = json.loads(self._query)
             if 'query' not in q:
