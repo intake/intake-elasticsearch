@@ -6,8 +6,9 @@ from elasticsearch import Elasticsearch, RequestError
 import pytest
 import pandas as pd
 
-from intake_elasticsearch import ElasticSearchTableSource, ElasticSearchSeqSource
-from .util import verify_plugin_interface, verify_datasource_interface
+from intake_elasticsearch import (ElasticSearchTableSource,
+                                  ElasticSearchSeqSource)
+from .util import verify_datasource_interface
 
 
 CONNECT = {'host': 'localhost', 'port': 9200}
@@ -119,10 +120,13 @@ def test_to_dask_with_partitions(engine):
                                       **CONNECT)
     dd = source.to_dask(npartitions=2)
     assert dd.npartitions == 2
-    assert set(dd.columns) ==  set(df.columns)
+    assert set(dd.columns) == set(df.columns)
 
     out = dd.compute()
-    assert out[df.columns].equals(df)
+
+    assert len(out) == len(df)
+    assert all([d in out.to_dict(orient='records')
+               for d in df.to_dict(orient='records')])
 
 
 def test_close(engine):

@@ -1,5 +1,4 @@
 from intake.source import base
-import time
 
 try:
     from json.decoder import JSONDecodeError
@@ -71,6 +70,7 @@ class ElasticSearchTableSource(ElasticSearchSeqSource):
             parts.append(part)
         else:
             for slice_id in range(npartitions):
+                self._dataframe = None
                 part = delayed(self._get_partition(0, slice_id=slice_id,
                                                    slice_max=npartitions))
                 parts.append(part)
@@ -85,11 +85,13 @@ class ElasticSearchTableSource(ElasticSearchSeqSource):
         """
         import pandas as pd
         if self._dataframe is None or self.part:
-            results = self._run_query()
+            results = self._run_query(slice_id=slice_id, slice_max=slice_max)
             df = pd.DataFrame([r['_source'] for r in results['hits']['hits']])
             self._dataframe = df
             self._schema = None
             self.part = False
+            if slice_id is not None and slice_max is not None:
+                self.part = False
             self.discover()
         return self._dataframe
 

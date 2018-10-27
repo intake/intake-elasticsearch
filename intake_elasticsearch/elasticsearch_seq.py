@@ -57,16 +57,22 @@ class ElasticSearchSeqSource(base.DataSource):
             size = self._size
         if end is not None:
             size = min(end, size)
+
+        slice_dict = None
+        if slice_id is not None and slice_max is not None:
+            slice_dict = {'slice': {'id': slice_id, 'max': slice_max}}
         try:
             q = json.loads(self._query)
             if 'query' not in q:
                 q = {'query': q}
-            if slice_id and slice_max:
-                q['slice'] = {'id':slice_id, 'max': slice_max}
+
+            if slice_dict:
+                q.update(slice_dict)
             s = self.es.search(body=q, size=size, scroll=self._scroll,
                                **self._qargs)
         except (JSONDecodeError, TypeError):
-            s = self.es.search(q=self._query, size=size, scroll=self._scroll,
+            s = self.es.search(body=slice_dict, q=self._query,
+                               size=size, scroll=self._scroll,
                                **self._qargs)
         sid = s['_scroll_id']
         scroll_size = s['hits']['total']
