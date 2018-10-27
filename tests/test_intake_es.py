@@ -113,6 +113,18 @@ def test_to_dask(engine):
     assert out[df.columns].equals(df)
 
 
+def test_to_dask_with_partitions(engine):
+    source = ElasticSearchTableSource('score:[0 TO 150]', qargs={
+                                      "sort": 'rank'},
+                                      **CONNECT)
+    dd = source.to_dask(npartitions=2)
+    assert dd.npartitions == 2
+    assert set(dd.columns) ==  set(df.columns)
+
+    out = dd.compute()
+    assert out[df.columns].equals(df)
+
+
 def test_close(engine):
     source = ElasticSearchTableSource('score:[0 TO 150]', qargs={
         "sort": 'rank'},

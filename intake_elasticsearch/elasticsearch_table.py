@@ -60,13 +60,21 @@ class ElasticSearchTableSource(ElasticSearchSeqSource):
                            npartitions=1,
                            extra_metadata=self.metadata)
 
-    def to_dask(self):
+    def to_dask(self, npartitions=1):
         """Make single-partition lazy dask data-frame"""
         import dask.dataframe as dd
         from dask import delayed
         self.discover()
-        part = delayed(self._get_partition(0))
-        return dd.from_delayed([part], meta=self.dtype)
+        parts = []
+        if npartitions == 1:
+            part = delayed(self._get_partition(0))
+            parts.append(part)
+        else:
+            for slice_id in range(npartitions):
+                part = delayed(self._get_partition(0, slice_id=slice_id,
+                                                   slice_max=npartitions))
+                parts.append(part)
+        return dd.from_delayed(parts, meta=self.dtype)
 
     def _get_partition(self, _, slice_id=None, slice_max=None):
         """Downloads all data
