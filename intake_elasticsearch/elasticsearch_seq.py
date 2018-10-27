@@ -52,7 +52,7 @@ class ElasticSearchSeqSource(base.DataSource):
 
         super(ElasticSearchSeqSource, self).__init__(metadata=metadata)
 
-    def _run_query(self, size=None, end=None):
+    def _run_query(self, size=None, end=None, slice_id=None, slice_max=None):
         if size is None:
             size = self._size
         if end is not None:
@@ -61,6 +61,8 @@ class ElasticSearchSeqSource(base.DataSource):
             q = json.loads(self._query)
             if 'query' not in q:
                 q = {'query': q}
+            if slice_id and slice_max:
+                q['slice'] = {'id':slice_id, 'max': slice_max}
             s = self.es.search(body=q, size=size, scroll=self._scroll,
                                **self._qargs)
         except (JSONDecodeError, TypeError):
@@ -85,12 +87,12 @@ class ElasticSearchSeqSource(base.DataSource):
                            npartitions=1,
                            extra_metadata={})
 
-    def _get_partition(self, _):
+    def _get_partition(self, _, slice_id=None, slice_max=None):
         """Downloads all data
 
         ES has a hard maximum of 10000 items to fetch. Otherwise need to
         implement paging, known to ES as "scroll"
         https://stackoverflow.com/questions/41655913/elk-how-do-i-retrieve-more-than-10000-results-events-in-elastic-search
         """
-        results = self._run_query()
+        results = self._run_query(slice_id=slice_id, slice_max=slice_max)
         return [r['_source'] for r in results['hits']['hits']]

@@ -68,7 +68,7 @@ class ElasticSearchTableSource(ElasticSearchSeqSource):
         part = delayed(self._get_partition(0))
         return dd.from_delayed([part], meta=self.dtype)
 
-    def _get_partition(self, _):
+    def _get_partition(self, _, slice_id=None, slice_max=None):
         """Downloads all data
 
         ES has a hard maximum of 10000 items to fetch. Otherwise need to
