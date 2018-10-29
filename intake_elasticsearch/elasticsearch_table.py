@@ -56,27 +56,27 @@ class ElasticSearchTableSource(ElasticSearchSeqSource):
         return base.Schema(datashape=None,
                            dtype=dtype,
                            shape=shape,
-                           npartitions=1,
+                           npartitions=self.npartitions,
                            extra_metadata=self.metadata)
 
-    def to_dask(self, npartitions=1):
+    def to_dask(self):
         """Make single-partition lazy dask data-frame"""
         import dask.dataframe as dd
         from dask import delayed
         self.discover()
         parts = []
-        if npartitions == 1:
+        if self.npartitions == 1:
             part = delayed(self._get_partition(0))
             parts.append(part)
         else:
-            for slice_id in range(npartitions):
+            for slice_id in range(self.npartitions):
                 self._dataframe = None
-                part = delayed(self._get_partition(0, slice_id=slice_id,
-                                                   slice_max=npartitions))
+                part = delayed(self._get_partition)(
+                    (slice_id, self.npartitions))
                 parts.append(part)
         return dd.from_delayed(parts, meta=self.dtype)
 
-    def _get_partition(self, _, slice_id=None, slice_max=None):
+    def _get_partition(self, _):
         """Downloads all data
 
         ES has a hard maximum of 10000 items to fetch. Otherwise need to
@@ -84,15 +84,23 @@ class ElasticSearchTableSource(ElasticSearchSeqSource):
         https://stackoverflow.com/questions/41655913/elk-how-do-i-retrieve-more-than-10000-results-events-in-elastic-search
         """
         import pandas as pd
+        slice_id = None
+        slice_max = None
+        if isinstance(_, tuple):
+            slice_id, slice_max = _
         if self._dataframe is None or self.part:
             results = self._run_query(slice_id=slice_id, slice_max=slice_max)
             df = pd.DataFrame([r['_source'] for r in results['hits']['hits']])
             self._dataframe = df
+            if self._dataframe.empty:
+                self._dataframe = pd.DataFrame(
+                    columns=self.dtype.keys()).astype(self.dtype)
             self._schema = None
             self.part = False
             if slice_id is not None and slice_max is not None:
                 self.part = False
             self.discover()
+
         return self._dataframe
 
     def _close(self):

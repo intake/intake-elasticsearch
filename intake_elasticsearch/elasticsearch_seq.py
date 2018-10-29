@@ -40,7 +40,8 @@ class ElasticSearchSeqSource(base.DataSource):
     version = __version__
     partition_access = False
 
-    def __init__(self, query, qargs={}, metadata={}, **es_kwargs):
+    def __init__(self, query, npartitions=1, qargs={}, metadata={},
+                 **es_kwargs):
         from elasticsearch import Elasticsearch
         self._query = query
         self._qargs = qargs
@@ -51,6 +52,7 @@ class ElasticSearchSeqSource(base.DataSource):
         self.es = Elasticsearch([es_kwargs])  # maybe should be (more) global?
 
         super(ElasticSearchSeqSource, self).__init__(metadata=metadata)
+        self.npartitions = npartitions
 
     def _run_query(self, size=None, end=None, slice_id=None, slice_max=None):
         if size is None:
@@ -85,20 +87,37 @@ class ElasticSearchSeqSource(base.DataSource):
         self.es.clear_scroll(scroll_id=sid)
         return s
 
+    def to_dask(self):
+        import dask.bag as db
+        from dask import delayed
+        self.discover()
+        parts = []
+        if self.npartitions == 1:
+            parts.append(delayed(self._get_partition)(0))
+        else:
+            for slice_id in range(self.npartitions):
+                parts.append(
+                    delayed(self._get_partition)((slice_id, self.npartitions)))
+        return db.from_delayed(parts)
+
     def _get_schema(self, retry=2):
         """Get schema from first 10 hits or cached dataframe"""
         return base.Schema(datashape=None,
                            dtype=None,
                            shape=None,
-                           npartitions=1,
+                           npartitions=self.npartitions,
                            extra_metadata={})
 
-    def _get_partition(self, _, slice_id=None, slice_max=None):
+    def _get_partition(self, _):
         """Downloads all data
 
         ES has a hard maximum of 10000 items to fetch. Otherwise need to
         implement paging, known to ES as "scroll"
         https://stackoverflow.com/questions/41655913/elk-how-do-i-retrieve-more-than-10000-results-events-in-elastic-search
         """
+        slice_id = None
+        slice_max = None
+        if isinstance(_, tuple):
+            slice_id, slice_max = _
         results = self._run_query(slice_id=slice_id, slice_max=slice_max)
         return [r['_source'] for r in results['hits']['hits']]
