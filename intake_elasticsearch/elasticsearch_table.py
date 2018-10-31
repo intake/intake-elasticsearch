@@ -65,43 +65,37 @@ class ElasticSearchTableSource(ElasticSearchSeqSource):
         from dask import delayed
         self.discover()
         parts = []
-        if self.npartitions == 1:
-            part = delayed(self._get_partition(0))
+
+        for slice_id in range(self.npartitions):
+            part = delayed(self._get_partition)(slice_id)
             parts.append(part)
-        else:
-            for slice_id in range(self.npartitions):
-                self._dataframe = None
-                part = delayed(self._get_partition)(
-                    (slice_id, self.npartitions))
-                parts.append(part)
         return dd.from_delayed(parts, meta=self.dtype)
 
-    def _get_partition(self, _):
-        """Downloads all data
+    def _get_partition(self, partition=None):
+        """Downloads all data or get the partiont-th slice of the scroll query
 
         ES has a hard maximum of 10000 items to fetch. Otherwise need to
         implement paging, known to ES as "scroll"
         https://stackoverflow.com/questions/41655913/elk-how-do-i-retrieve-more-than-10000-results-events-in-elastic-search
+
+        Parameters
+        ----------
+
+        partition: int|None
+            Slice id for the slice query or None.
         """
         import pandas as pd
-        slice_id = None
-        slice_max = None
-        if isinstance(_, tuple):
-            slice_id, slice_max = _
-        if self._dataframe is None or self.part:
-            results = self._run_query(slice_id=slice_id, slice_max=slice_max)
-            df = pd.DataFrame([r['_source'] for r in results['hits']['hits']])
-            self._dataframe = df
-            if self._dataframe.empty:
-                self._dataframe = pd.DataFrame(
-                    columns=self.dtype.keys()).astype(self.dtype)
-            self._schema = None
-            self.part = False
-            if slice_id is not None and slice_max is not None:
-                self.part = False
-            self.discover()
+        results = super(ElasticSearchTableSource, self)._get_partition(
+            partition)
+        df = pd.DataFrame(results)
+        if df.empty:
+            df = self._dataframe[:0]
+        self._schema = None
+        self.part = False
 
-        return self._dataframe
+        self.discover()
+
+        return df
 
     def _close(self):
         self._dataframe = None

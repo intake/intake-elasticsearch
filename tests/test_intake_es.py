@@ -122,16 +122,18 @@ def test_discover_after_read(engine):
 
 
 def test_to_dask(engine):
-    source = ElasticSearchTableSource('score:[0 TO 150]', qargs={
+    source = ElasticSearchTableSource('score:[0 TO 150]',npartitions=2,  qargs={
                                       "sort": 'rank'},
                                       **CONNECT)
 
     dd = source.to_dask()
-    assert dd.npartitions == 1
+    assert dd.npartitions == 2
     assert set(dd.columns) == set(df.columns)
     out = dd.compute()
 
-    assert out[df.columns].equals(df)
+    assert len(out) == len(df)
+    assert all([d in out.to_dict(orient='records')
+                for d in df.to_dict(orient='records')])
 
 
 def test_to_dask_with_partitions(engine):

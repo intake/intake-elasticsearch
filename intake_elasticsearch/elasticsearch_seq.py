@@ -61,7 +61,7 @@ class ElasticSearchSeqSource(base.DataSource):
             size = min(end, size)
 
         slice_dict = None
-        if slice_id is not None and slice_max is not None:
+        if slice_id is not None:
             slice_dict = {'slice': {'id': slice_id, 'max': slice_max}}
         try:
             q = json.loads(self._query)
@@ -87,17 +87,18 @@ class ElasticSearchSeqSource(base.DataSource):
         self.es.clear_scroll(scroll_id=sid)
         return s
 
+    def read(self):
+        return self._get_partition()
+
     def to_dask(self):
         import dask.bag as db
         from dask import delayed
         self.discover()
         parts = []
-        if self.npartitions == 1:
-            parts.append(delayed(self._get_partition)(0))
-        else:
-            for slice_id in range(self.npartitions):
-                parts.append(
-                    delayed(self._get_partition)((slice_id, self.npartitions)))
+
+        for slice_id in range(self.npartitions):
+            parts.append(
+                delayed(self._get_partition)(slice_id))
         return db.from_delayed(parts)
 
     def _get_schema(self, retry=2):
@@ -108,16 +109,18 @@ class ElasticSearchSeqSource(base.DataSource):
                            npartitions=self.npartitions,
                            extra_metadata={})
 
-    def _get_partition(self, _):
+    def _get_partition(self, partition=None):
         """Downloads all data
 
         ES has a hard maximum of 10000 items to fetch. Otherwise need to
         implement paging, known to ES as "scroll"
         https://stackoverflow.com/questions/41655913/elk-how-do-i-retrieve-more-than-10000-results-events-in-elastic-search
+
+        Parameters
+        ----------
+        partition: int|None
+            If get thei partition-th slice of the scroll query
         """
-        slice_id = None
-        slice_max = None
-        if isinstance(_, tuple):
-            slice_id, slice_max = _
-        results = self._run_query(slice_id=slice_id, slice_max=slice_max)
+        slice_id = partition
+        results = self._run_query(slice_id=slice_id, slice_max=self.npartitions)
         return [r['_source'] for r in results['hits']['hits']]
