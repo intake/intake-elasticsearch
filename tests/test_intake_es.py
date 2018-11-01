@@ -6,8 +6,9 @@ from elasticsearch import Elasticsearch, RequestError
 import pytest
 import pandas as pd
 
-from intake_elasticsearch import ElasticSearchTableSource, ElasticSearchSeqSource
-from .util import verify_plugin_interface, verify_datasource_interface
+from intake_elasticsearch import (ElasticSearchTableSource,
+                                  ElasticSearchSeqSource)
+from .util import verify_datasource_interface
 
 
 CONNECT = {'host': 'localhost', 'port': 9200}
@@ -46,6 +47,15 @@ def test_open(engine):
     d = ElasticSearchTableSource('score:[30 TO 150]', **CONNECT)
     assert d.container == 'dataframe'
     assert d.description is None
+    assert d.npartitions == 1
+    verify_datasource_interface(d)
+
+
+def test_open_with_two_partitions(engine):
+    d = ElasticSearchTableSource('score:[30 TO 150]', npartitions=2,  **CONNECT)
+    assert d.container == 'dataframe'
+    assert d.description is None
+    assert d.npartitions == 2
     verify_datasource_interface(d)
 
 
@@ -82,6 +92,28 @@ def test_read_small_scroll(engine):
                for d in df.to_dict(orient='records')])
 
 
+def test_read_dask_sequence_one_partition(engine):
+    source = ElasticSearchSeqSource('score:[0 TO 150]',
+                                    **CONNECT)
+    bags = source.to_dask()
+    assert bags.npartitions == 1
+    out = bags.compute()
+
+    assert all([d in out
+                for d in df.to_dict(orient='records')])
+
+
+def test_read_dask_sequence_two_partitions(engine):
+    source = ElasticSearchSeqSource('score:[0 TO 150]', npartitions=2,
+                                    **CONNECT)
+    bags = source.to_dask()
+    assert bags.npartitions == 2
+    out = bags.compute()
+
+    assert all([d in out
+                for d in df.to_dict(orient='records')])
+
+
 def test_discover_after_read(engine):
     source = ElasticSearchTableSource('score:[0 TO 150]', **CONNECT)
     info = source.discover()
@@ -101,16 +133,73 @@ def test_discover_after_read(engine):
 
 
 def test_to_dask(engine):
-    source = ElasticSearchTableSource('score:[0 TO 150]', qargs={
-                                      "sort": 'rank'},
-                                      **CONNECT)
+    source = ElasticSearchTableSource('score:[0 TO 150]',  qargs={
+                                      "sort": 'rank'}, **CONNECT)
 
     dd = source.to_dask()
     assert dd.npartitions == 1
     assert set(dd.columns) == set(df.columns)
     out = dd.compute()
 
-    assert out[df.columns].equals(df)
+    assert len(out) == len(df)
+    assert all([d in out.to_dict(orient='records')
+                for d in df.to_dict(orient='records')])
+
+
+def test_to_dask_with_partitions(engine):
+    source = ElasticSearchTableSource('score:[0 TO 150]', npartitions=4, qargs={
+                                      "sort": 'rank'},
+                                      **CONNECT)
+    dd = source.to_dask()
+    assert dd.npartitions == 4
+    assert set(dd.columns) == set(df.columns)
+
+    out = dd.compute()
+
+    assert len(out) == len(df)
+    assert all([d in out.to_dict(orient='records')
+               for d in df.to_dict(orient='records')])
+
+
+def test_to_dask_with_partitions_use_json_query(engine):
+    query_string = '''
+        {
+            "query": {
+                "range" : {
+                    "score" : {
+                        "gte" : 0,
+                        "lte" : 150,
+                        "boost" : 2.0
+                    }
+                }
+            }
+        }
+    '''
+
+    source = ElasticSearchTableSource(query_string, npartitions=2, **CONNECT)
+    dd = source.to_dask()
+    assert dd.npartitions == 2
+    assert set(dd.columns) == set(df.columns)
+
+    out = dd.compute()
+
+    assert len(out) == len(df)
+    assert all([d in out.to_dict(orient='records')
+                for d in df.to_dict(orient='records')])
+
+
+def test_to_dask_empty_shard(engine):
+    source = ElasticSearchTableSource('score:[0 TO 150]', npartitions=5, qargs={
+        "sort": 'rank'}, **CONNECT)
+    dd = source.to_dask()
+    assert dd.npartitions == 5
+    assert set(dd.columns) == set(df.columns)
+
+    out = dd.compute()
+
+    assert len(out) == len(df)
+    assert all([d in out.to_dict(orient='records')
+                for d in df.to_dict(orient='records')])
 
 
 def test_close(engine):

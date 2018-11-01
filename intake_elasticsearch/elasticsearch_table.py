@@ -1,5 +1,4 @@
 from intake.source import base
-import time
 
 try:
     from json.decoder import JSONDecodeError
@@ -57,7 +56,7 @@ class ElasticSearchTableSource(ElasticSearchSeqSource):
         return base.Schema(datashape=None,
                            dtype=dtype,
                            shape=shape,
-                           npartitions=1,
+                           npartitions=self.npartitions,
                            extra_metadata=self.metadata)
 
     def to_dask(self):
@@ -65,25 +64,42 @@ class ElasticSearchTableSource(ElasticSearchSeqSource):
         import dask.dataframe as dd
         from dask import delayed
         self.discover()
-        part = delayed(self._get_partition(0))
-        return dd.from_delayed([part], meta=self.dtype)
+        parts = []
+        if self.npartitions == 1:
+            part = delayed(self._get_partition)()
+            return dd.from_delayed([part], meta=self.dtype)
 
-    def _get_partition(self, _):
-        """Downloads all data
+        for slice_id in range(self.npartitions):
+            part = delayed(self._get_partition)(slice_id)
+            parts.append(part)
+        return dd.from_delayed(parts, meta=self.dtype)
+
+    def _get_partition(self, partition=None):
+        """
+        Downloads all data or get the partiont-th slice of the scroll query
 
         ES has a hard maximum of 10000 items to fetch. Otherwise need to
         implement paging, known to ES as "scroll"
         https://stackoverflow.com/questions/41655913/elk-how-do-i-retrieve-more-than-10000-results-events-in-elastic-search
+
+        Parameters
+        ----------
+
+        partition: int|None
+            Slice id for the slice query or None.
         """
         import pandas as pd
-        if self._dataframe is None or self.part:
-            results = self._run_query()
-            df = pd.DataFrame([r['_source'] for r in results['hits']['hits']])
-            self._dataframe = df
-            self._schema = None
-            self.part = False
-            self.discover()
-        return self._dataframe
+        results = super(ElasticSearchTableSource, self)._get_partition(
+            partition)
+        df = pd.DataFrame(results)
+        if df.empty:
+            df = self._dataframe[:0]
+        self._schema = None
+        self.part = False
+
+        self.discover()
+
+        return df
 
     def _close(self):
         self._dataframe = None
