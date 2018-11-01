@@ -19,6 +19,8 @@ class ElasticSearchTableSource(ElasticSearchSeqSource):
     query: str
        Query to execute. Can either be in Lucene single-line format, or a
        JSON structured query (presented as text)
+    npartitions: int
+        Split query into this many sections. If one, will not split.
     qargs: dict
         Further parameters to pass to the query, such as set of indexes to
         consider, filtering, ordering. See
@@ -46,6 +48,7 @@ class ElasticSearchTableSource(ElasticSearchSeqSource):
         import pandas as pd
         """Get schema from first 10 hits or cached dataframe"""
         if self._dataframe is None:
+            # get dtypes from first 100 results
             results = self._run_query(end=100)
             df = pd.DataFrame([r['_source'] for r in results['hits']['hits']])
             self._dataframe = df
@@ -60,7 +63,7 @@ class ElasticSearchTableSource(ElasticSearchSeqSource):
                            extra_metadata=self.metadata)
 
     def to_dask(self):
-        """Make single-partition lazy dask data-frame"""
+        """Turn into dask.dataframe"""
         import dask.dataframe as dd
         from dask import delayed
         self.discover()
@@ -76,7 +79,7 @@ class ElasticSearchTableSource(ElasticSearchSeqSource):
 
     def _get_partition(self, partition=None):
         """
-        Downloads all data or get the partiont-th slice of the scroll query
+        Downloads all data or get the given partition of the query
 
         ES has a hard maximum of 10000 items to fetch. Otherwise need to
         implement paging, known to ES as "scroll"
@@ -84,9 +87,8 @@ class ElasticSearchTableSource(ElasticSearchSeqSource):
 
         Parameters
         ----------
-
-        partition: int|None
-            Slice id for the slice query or None.
+        partition: int or None
+            If None, get all data; otherwise, get specific partition
         """
         import pandas as pd
         results = super(ElasticSearchTableSource, self)._get_partition(

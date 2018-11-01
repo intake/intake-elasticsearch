@@ -11,14 +11,15 @@ class ElasticSearchSeqSource(base.DataSource):
     """
     Data source which executes arbitrary queries on ElasticSearch
 
-    This is the tabular reader: will return dataframes. Nested return items
-    will become dict-like objects in the output.
+    This is the sequential reader: will return a list of dictionaries.
 
     Parameters
     ----------
     query: str
        Query to execute. Can either be in Lucene single-line format, or a
        JSON structured query (presented as text)
+    npartitions: int
+        Split query into this many sections. If one, will not split.
     qargs: dict
         Further parameters to pass to the query, such as set of indexes to
         consider, filtering, ordering. See
@@ -55,6 +56,18 @@ class ElasticSearchSeqSource(base.DataSource):
         self.npartitions = npartitions
 
     def _run_query(self, size=None, end=None, slice_id=None, slice_max=None):
+        """Execute query on ES
+
+        Parameters
+        ----------
+        size: int
+            Number of objects per page
+        end: int
+            Cut query down to this number of results, useful for getting a
+            sample
+        slice_id, slice_max: int
+            If given, this is one of slice_max partitions.
+        """
         if size is None:
             size = self._size
         if end is not None:
@@ -88,9 +101,11 @@ class ElasticSearchSeqSource(base.DataSource):
         return s
 
     def read(self):
+        """Read all data in one go"""
         return self._get_partition()
 
     def to_dask(self):
+        """Form partitions into a dask.bag"""
         import dask.bag as db
         from dask import delayed
         self.discover()
@@ -105,7 +120,6 @@ class ElasticSearchSeqSource(base.DataSource):
         return db.from_delayed(parts)
 
     def _get_schema(self, retry=2):
-        """Get schema from first 10 hits or cached dataframe"""
         return base.Schema(datashape=None,
                            dtype=None,
                            shape=None,
@@ -114,17 +128,12 @@ class ElasticSearchSeqSource(base.DataSource):
 
     def _get_partition(self, partition=None):
         """
-        Downloads all data or get the partiont-th slice of the scroll query
-
-
-        ES has a hard maximum of 10000 items to fetch. Otherwise need to
-        implement paging, known to ES as "scroll"
-        https://stackoverflow.com/questions/41655913/elk-how-do-i-retrieve-more-than-10000-results-events-in-elastic-search
+        Downloads all data or get specific partion slice of the query
 
         Parameters
         ----------
-        partition: int|None
-            Slice id for the slice query or None.
+        partition: int or None
+            If None, get all data; otherwise, get specific partition
         """
         slice_id = partition
         results = self._run_query(slice_id=slice_id, slice_max=self.npartitions)
