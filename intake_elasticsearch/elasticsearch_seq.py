@@ -95,6 +95,9 @@ class ElasticSearchSeqSource(base.DataSource):
         from dask import delayed
         self.discover()
         parts = []
+        if self.npartitions == 1:
+            part = delayed(self._get_partition)()
+            return db.from_delayed([part])
 
         for slice_id in range(self.npartitions):
             parts.append(
@@ -110,7 +113,9 @@ class ElasticSearchSeqSource(base.DataSource):
                            extra_metadata={})
 
     def _get_partition(self, partition=None):
-        """Downloads all data
+        """
+        Downloads all data or get the partiont-th slice of the scroll query
+
 
         ES has a hard maximum of 10000 items to fetch. Otherwise need to
         implement paging, known to ES as "scroll"
@@ -119,7 +124,7 @@ class ElasticSearchSeqSource(base.DataSource):
         Parameters
         ----------
         partition: int|None
-            If get thei partition-th slice of the scroll query
+            Slice id for the slice query or None.
         """
         slice_id = partition
         results = self._run_query(slice_id=slice_id, slice_max=self.npartitions)

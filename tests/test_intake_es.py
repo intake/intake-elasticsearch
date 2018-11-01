@@ -92,6 +92,17 @@ def test_read_small_scroll(engine):
                for d in df.to_dict(orient='records')])
 
 
+def test_read_dask_sequence_one_partition(engine):
+    source = ElasticSearchSeqSource('score:[0 TO 150]',
+                                    **CONNECT)
+    bags = source.to_dask()
+    assert bags.npartitions == 1
+    out = bags.compute()
+
+    assert all([d in out
+                for d in df.to_dict(orient='records')])
+
+
 def test_read_dask_sequence_two_partitions(engine):
     source = ElasticSearchSeqSource('score:[0 TO 150]', npartitions=2,
                                     **CONNECT)
@@ -122,12 +133,11 @@ def test_discover_after_read(engine):
 
 
 def test_to_dask(engine):
-    source = ElasticSearchTableSource('score:[0 TO 150]',npartitions=2,  qargs={
-                                      "sort": 'rank'},
-                                      **CONNECT)
+    source = ElasticSearchTableSource('score:[0 TO 150]',  qargs={
+                                      "sort": 'rank'}, **CONNECT)
 
     dd = source.to_dask()
-    assert dd.npartitions == 2
+    assert dd.npartitions == 1
     assert set(dd.columns) == set(df.columns)
     out = dd.compute()
 
