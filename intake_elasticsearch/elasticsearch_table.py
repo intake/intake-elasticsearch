@@ -39,6 +39,7 @@ class ElasticSearchTableSource(ElasticSearchSeqSource):
     """
     _dataframe = None
     container = 'dataframe'
+    name = 'elasticsearch_table'
 
     def __init__(self, *args, **kwargs):
         ElasticSearchSeqSource.__init__(self, *args, **kwargs)
