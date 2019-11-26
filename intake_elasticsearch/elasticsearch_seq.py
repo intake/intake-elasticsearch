@@ -51,6 +51,8 @@ class ElasticSearchSeqSource(base.DataSource):
         self._es_kwargs = es_kwargs
         self._dataframe = None
         self.es = Elasticsearch([es_kwargs])  # maybe should be (more) global?
+        self.es_version = tuple(
+            int(v) if v.isdigit() else -1 for v in self.es.info()['version']['number'].strip().split("."))
 
         super(ElasticSearchSeqSource, self).__init__(metadata=metadata)
         self.npartitions = npartitions
@@ -90,7 +92,10 @@ class ElasticSearchSeqSource(base.DataSource):
                                size=size, scroll=self._scroll,
                                **self._qargs)
         sid = s['_scroll_id']
-        scroll_size = s['hits']['total']
+        if self.es_version[0] >= 7:
+            scroll_size = s['hits']['total']['value']
+        else:
+            scroll_size = s['hits']['total']
         while scroll_size > len(s['hits']['hits']):
             page = self.es.scroll(scroll_id=sid, scroll=self._scroll)
             sid = page['_scroll_id']
