@@ -17,6 +17,11 @@ setup(
     license='BSD',
     py_modules=['intake_elasticsearch'],
     packages=find_packages(),
+    entry_points={
+        'intake.drivers': [
+            'elasticsearch_seq = intake_elasticsearch.elasticsearch_seq:ElasticSearchSeqSource',
+            'elasticsearch_table = intake_elasticsearch.elasticsearch_table:ElasticSearchTableSource',
+        ]},
     package_data={'': ['*.csv', '*.yml', '*.html']},
     include_package_data=True,
     install_requires=requires,
